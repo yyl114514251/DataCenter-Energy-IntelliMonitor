@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据中心能耗智能监控大屏 · 仿真演示</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230F766E'/%3E%3Cpath d='M35 8 18 36h10l-3 20 19-30H33l2-18z' fill='%23E6FFFB'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0a1220;
+  --panel:#0f1b31;
+  --panel-2:#122241;
+  --line:#1d3350;
+  --ink:#e2e8f0;
+  --ink-dim:#8ba3bf;
+  --cyan:#2dd4bf;
+  --blue:#38bdf8;
+  --amber:#f59e0b;
+  --red:#ef4444;
+  --green:#34d399;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(45,212,191,.10), transparent 60%),
+    radial-gradient(900px 500px at 100% 110%, rgba(56,189,248,.08), transparent 60%),
+    var(--bg);
+  color:var(--ink);
+  font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  min-height:100vh;padding:14px 18px 20px;
+}
+.num{font-variant-numeric:tabular-nums;}
+/* ===== 顶栏 ===== */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 22px 12px;position:relative;
+}
+header .side{width:260px;flex:none;}
+header h1{
+  font-size:26px;letter-spacing:4px;font-weight:700;text-align:center;
+  background:linear-gradient(90deg,var(--cyan),#7dd3fc 55%,var(--cyan));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+header .sub{text-align:center;font-size:12px;color:var(--ink-dim);margin-top:4px;letter-spacing:2px;}
+.clock{text-align:right;}
+.clock .t{font-size:22px;letter-spacing:1px;color:var(--ink);}
+.clock .d{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.45;}}
+/* ===== 布局 ===== */
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin-top:10px;}
+.panel{
+  background:linear-gradient(180deg,var(--panel),var(--panel-2));
+  border:1px solid var(--line);border-radius:8px;padding:10px 12px 8px;
+  display:flex;flex-direction:column;min-width:0;min-height:0;
+}
+.panel h2{
+  font-size:13px;font-weight:600;color:#cfe3ff;letter-spacing:1px;
+  display:flex;align-items:center;gap:8px;margin-bottom:8px;flex:none;
+  min-width:0;
+}
+.panel h2::before{content:"";width:4px;height:14px;background:linear-gradient(180deg,var(--cyan),var(--blue));border-radius:2px;}
+.panel h2 .tag{margin-left:auto;font-size:11px;color:var(--ink-dim);font-weight:400;letter-spacing:0;}
+.chart{width:100%;flex:1;min-height:200px;}
+/* KPI */
+.kpi{flex-direction:row;align-items:center;gap:12px;padding:14px 16px;min-width:0;overflow:hidden;grid-column:span 2;}
+.kpi .ico{width:38px;height:38px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.kpi>div:last-child{flex:1;min-width:0;}
+.kpi .v{font-size:clamp(15px,2.9vw,24px);font-weight:700;line-height:1;white-space:nowrap;min-width:0;}
+.kpi .v small{font-size:12px;font-weight:400;color:var(--ink-dim);margin-left:4px;}
+.kpi .l{font-size:12px;color:var(--ink-dim);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.kpi .trend{font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ico-c{background:rgba(45,212,191,.14);color:var(--cyan);}
+.ico-b{background:rgba(56,189,248,.14);color:var(--blue);}
+.ico-o{background:rgba(245,158,11,.14);color:var(--amber);}
+.ico-r{background:rgba(239,68,68,.14);color:var(--red);}
+.ico-g{background:rgba(52,211,153,.14);color:var(--green);}
+/* 告警列表 */
+.alarm-list{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:8px;}
+.alarm{display:flex;gap:8px;align-items:flex-start;font-size:12px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-left-width:3px;border-radius:4px;padding:7px 9px;}
+.alarm.sev{border-left-color:var(--red);}
+.alarm.warn{border-left-color:var(--amber);}
+.alarm .at{color:var(--ink-dim);font-size:11px;flex:none;margin-top:1px;}
+.alarm .tx{line-height:1.5;}
+/* 数据链路 */
+.pipeline{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;}
+.pipe-node{flex:1;min-width:90px;text-align:center;background:rgba(45,212,191,.06);border:1px solid rgba(45,212,191,.25);border-radius:6px;padding:9px 4px;}
+.pipe-node .n{font-size:13px;color:var(--cyan);}
+.pipe-node .d{font-size:11px;color:var(--ink-dim);margin-top:3px;}
+.pipe-arrow{color:var(--cyan);font-size:16px;flex:none;opacity:.7;}
+.demo-note{text-align:center;font-size:11px;color:#5f7ba0;margin-top:10px;letter-spacing:1px;}
+/* 列宽类（供媒体查询统一覆盖，避免内联样式压制响应式） */
+.w4{grid-column:span 4;}
+.w5{grid-column:span 5;}
+.w7{grid-column:span 7;}
+/* 响应式 */
+@media (max-width:1100px){
+  .grid{grid-template-columns:repeat(6,1fr);}
+  .kpi{grid-column:span 2;}
+  .w4,.w5,.w7{grid-column:span 3;}
+}
+@media (max-width:700px){
+  .grid{grid-template-columns:1fr;}
+  .kpi,.w4,.w5,.w7{grid-column:span 1;}
+  header h1{font-size:18px;letter-spacing:2px;}
+  header .side{width:auto;}
+  header{flex-wrap:wrap;gap:8px;justify-content:center;}
+  .clock{text-align:center;}
+  .pipeline{flex-direction:column;}
+  .pipe-arrow{transform:rotate(90deg);}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="side"><span class="status-dot"></span><span class="sub" style="display:inline;color:var(--ink-dim);font-size:12px;">系统运行中</span></div>
+  <div>
+    <h1>数据中心能耗智能监控大屏</h1>
+    <div class="sub">IDC 机房节能 · 仿真演示系统</div>
+  </div>
+  <div class="clock side">
+    <div class="t num" id="clockT">--:--:--</div>
+    <div class="d num" id="clockD">----/--/--</div>
+  </div>
+</header>
+
+<main class="grid">
+  <!-- KPI -->
+  <div class="panel kpi"><div class="ico ico-c"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></div><div><div class="v num" id="kpP">--<small>kW</small></div><div class="l">机房总功率</div></div></div>
+  <div class="panel kpi"><div class="ico ico-g"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 6"/></svg></div><div><div class="v num" id="kpPue">--</div><div class="l">PUE 能效比</div><div class="trend" id="kpPueT" style="color:var(--green);">目标 ≤1.30</div></div></div>
+  <div class="panel kpi"><div class="ico ico-o"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a5 5 0 0 0-3 9v7a3 3 0 0 0 6 0v-7a5 5 0 0 0-3-9z"/></svg></div><div><div class="v num" id="kpT">--<small>°C</small></div><div class="l">机柜平均温度</div><div class="trend" id="kpTt" style="color:var(--ink-dim);">--</div></div></div>
+  <div class="panel kpi"><div class="ico ico-b"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></div><div><div class="v num" id="kpH">--<small>%</small></div><div class="l">环境湿度</div><div class="trend" id="kpHt" style="color:var(--ink-dim);">--</div></div></div>
+  <div class="panel kpi"><div class="ico ico-b"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16M6 16l4-6 3 3 5-8"/></svg></div><div><div class="v num" id="kpE">--<small>kWh</small></div><div class="l">今日累计能耗</div></div></div>
+  <div class="panel kpi"><div class="ico ico-r"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 9v5M12 17.5v.5"/></svg></div><div><div class="v num" id="kpA">--</div><div class="l">活动告警</div><div class="trend" id="kpAt" style="color:var(--red);">--</div></div></div>
+
+  <!-- 功率曲线 -->
+  <div class="panel w4">
+    <h2>机房总功率实时曲线 <span class="tag">含未来 6 点能耗预测</span></h2>
+    <div class="chart" id="chPower"></div>
+  </div>
+  <!-- 热力图 -->
+  <div class="panel w4">
+    <h2>机柜温度热力图 <span class="tag">6 排 × 10 列</span></h2>
+    <div class="chart" id="chHeat"></div>
+  </div>
+  <!-- 环形 -->
+  <div class="panel w4">
+    <h2>能耗构成占比 <span class="tag">实时</span></h2>
+    <div class="chart" id="chPie"></div>
+  </div>
+
+  <!-- 24h 堆叠柱 -->
+  <div class="panel w4">
+    <h2>24 小时能耗构成 <span class="tag">IT / 制冷 / 供配电 / 照明</span></h2>
+    <div class="chart" id="chBar"></div>
+  </div>
+  <!-- PUE -->
+  <div class="panel w4">
+    <h2>PUE 趋势 <span class="tag">目标 ≤ 1.30</span></h2>
+    <div class="chart" id="chPue"></div>
+  </div>
+  <!-- 告警 -->
+  <div class="panel w4">
+    <h2>异常告警 <span class="tag">实时监测</span></h2>
+    <div class="alarm-list" id="alarmList"></div>
+  </div>
+
+  <!-- 机柜负载 -->
+  <div class="panel w7">
+    <h2>机柜负载率 <span class="tag">R01–R10</span></h2>
+    <div class="chart" id="chLoad"></div>
+  </div>
+  <!-- 数据链路 -->
+  <div class="panel w5">
+    <h2>系统数据链路 <span class="tag">架构说明</span></h2>
+    <div class="pipeline">
+      <div class="pipe-node"><div class="n">传感器采集</div><div class="d">温湿度 / 电流 / 功率</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node"><div class="n">IoT 网关汇聚</div><div class="d">MQTT / Modbus 接入</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node"><div class="n">时序数据库</div><div class="d">采集存储 / 统计</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node"><div class="n">智能分析</div><div class="d">告警 / 预测 / 节能</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node"><div class="n">大屏展示</div><div class="d">实时可视化</div></div>
+    </div>
+  </div>
+</main>
+
+<div class="demo-note">本系统为仿真数据演示（Demo），用于项目展示与方案沟通 · 数据每 1.5 秒刷新</div>
+
+<script src="assets/echarts.min.js"></script>
+<script>
+/* ===================== 工具 ===================== */
+function $(id){ return document.getElementById(id); }
+function pad(n){ return n<10 ? '0'+n : ''+n; }
+
+/* 确定性伪随机（LCG），保证每次刷新数据形态一致、稳定可复现 */
+var seed = 20260917;
+function rnd(){ seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+function rndRange(a,b){ return a + rnd()*(b-a); }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+/* ===================== 数据引擎 ===================== */
+var WINDOW = 60;          // 滚动窗口
+var FUTURE = 6;           // 预测点数
+var ROWS = 6, COLS = 10;  // 机柜矩阵
+var tick = 0;
+
+var timeLabels = [];
+var powerHist = [];   // 总功率
+var itHist = [];      // IT 功率
+var coolHist = [];    // 制冷
+var pueHist = [];
+var tempHist = [];    // 平均温度
+var humiHist = [];
+var loadHist = [];    // 机柜负载
+var barStack = [];    // 24h 堆叠柱数据 [{it,cool,power,light}]
+var alarms = [];      // 活动告警 [{t,level,text}]
+var alarmKeys = {};   // 告警去重
+
+function nowStr(){
+  var d = new Date();
+  return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+}
+function nowLabel(){
+  var d = new Date();
+  return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+}
+function hourLabel(i){
+  return pad(((i)%24)) + ':00';
+}
+
+/* 机柜温度矩阵：列方向从左到右升温（模拟设备排布），行微差，含噪声 */
+function genHeat(){
+  var m = [];
+  for(var r=0;r<ROWS;r++){
+    var row = [];
+    for(var c=0;c<COLS;c++){
+      var base = 23.5 + c*0.85 + (r%3)*0.4;
+      var v = base + rndRange(-0.6,0.9) + Math.sin(tick/8 + r*0.7 + c*0.3)*0.35;
+      row.push(+(v.toFixed(1)));
+    }
+    m.push(row);
+  }
+  return m;
+}
+
+/* 生成一个 tick 的全部数据 */
+function tickData(){
+  tick++;
+  var d = new Date();
+  var hour = d.getHours() + d.getMinutes()/60;
+
+  /* 总功率：基线 680kW + 日间负载波动 + 正弦 + 噪声 + 缓慢漂移 */
+  var base = 680 + 55*Math.sin((hour-8)/24*Math.PI*2) + 22*Math.sin(tick/30) + rndRange(-11,11) + tick*0.012;
+  var power = clamp(base, 560, 860);
+  var it = power*0.72;
+  var cool = power*0.19;
+  var elec = power*0.06;
+  var light = power*0.03;
+  var pue = +(1.30 + 0.05*Math.sin(tick/36) + rndRange(-0.015,0.015)).toFixed(3);
+  var avgT = +( (25.6 + 2.6*Math.sin(tick/26) + rndRange(-0.4,0.5)) ).toFixed(1);
+  var humi = +( (47 + 4*Math.sin(tick/40) + rndRange(-1.6,1.6)) ).toFixed(1);
+
+  timeLabels.push(nowLabel());
+  if(timeLabels.length > WINDOW) timeLabels.shift();
+  powerHist.push(+power.toFixed(1));
+  itHist.push(+it.toFixed(1));
+  coolHist.push(+cool.toFixed(1));
+  pueHist.push(pue);
+  tempHist.push(avgT);
+  humiHist.push(humi);
+  if(powerHist.length > WINDOW){ powerHist.shift(); itHist.shift(); coolHist.shift(); pueHist.shift(); tempHist.shift(); humiHist.shift(); }
+
+  /* 机柜负载 R01–R10 */
+  var loads = [];
+  for(var i=0;i<10;i++){
+    loads.push(+( (48 + i*3.1 + 9*Math.sin(tick/14 + i*1.1) + rndRange(-5,6)) ).toFixed(1));
+  }
+  loadHist = loads;
+
+  /* 24h 堆叠柱：滚动更新当前小时，其余按波动 */
+  var curHour = d.getHours();
+  var exists = false;
+  for(var j=0;j<barStack.length;j++){
+    if(barStack[j].h === curHour){ barStack[j] = {h:curHour, it:+it.toFixed(1), cool:+cool.toFixed(1), elec:+elec.toFixed(1), light:+light.toFixed(1)}; exists = true; break; }
+  }
+  if(!exists){
+    barStack.push({h:curHour, it:+it.toFixed(1), cool:+cool.toFixed(1), elec:+elec.toFixed(1), light:+light.toFixed(1)});
+  }
+  while(barStack.length > 24) barStack.shift();
+  for(var k=0;k<barStack.length;k++){
+    if(barStack[k].h !== curHour){
+      var f = 0.92 + rnd()*0.16;
+      barStack[k].it = +(barStack[k].it*f).toFixed(1);
+      barStack[k].cool = +(barStack[k].cool*f).toFixed(1);
+      barStack[k].elec = +(barStack[k].elec*f).toFixed(1);
+      barStack[k].light = +(barStack[k].light*f).toFixed(1);
+    }
+  }
+  barStack.sort(function(a,b){ return a.h - b.h; });
+
+  /* 能耗累计（仿真基线 210kWh 起算） */
+  var todayKwh = +( (210 + tick * 0.42) ).toFixed(1);
+
+  /* 告警生成 */
+  maybeAlarm(pue, avgT, loads, humi);
+  pruneAlarms();
+
+  return {
+    power: +power.toFixed(1), it: +it.toFixed(1), cool: +cool.toFixed(1),
+    elec: +elec.toFixed(1), light: +light.toFixed(1), pue: pue,
+    avgT: avgT, humi: +humi.toFixed(1), todayKwh: todayKwh,
+    loads: loads
+  };
+}
+
+var alarmPool = [
+  {lv:'warn', make:function(pue){ return pue > 1.45 ? 'PUE 达到 ' + pue.toFixed(2) + '，超出节能目标，建议调优制冷策略' : null; }},
+  {lv:'warn', make:function(pue,t){ return t > 30.5 ? '机柜区域平均温度 ' + t.toFixed(1) + '°C，接近告警阈值 30.5°C' : null; }},
+  {lv:'sev',  make:function(pue,t){ return t > 32 ? '机柜热点温度 ' + t.toFixed(1) + '°C，存在过热风险，请核查空调送风' : null; }},
+  {lv:'warn', make:function(pue,t,loads){ for(var i=0;i<loads.length;i++){ if(loads[i] > 90) return '机柜 R' + pad(i+1) + ' 负载率 ' + loads[i].toFixed(1) + '%，接近容量上限'; } return null; }},
+  {lv:'sev',  make:function(pue,t,loads,h){ return h < 35 ? '机房湿度 ' + h.toFixed(1) + '%，低于 35%，静电风险升高' : null; }},
+  {lv:'warn', make:function(pue,t,loads,h){ return h > 62 ? '机房湿度 ' + h.toFixed(1) + '%，高于 62%，凝露风险升高' : null; }}
+];
+
+function maybeAlarm(pue, t, loads, h){
+  if(rnd() < 0.28){
+    var rule = alarmPool[Math.floor(rnd()*alarmPool.length)];
+    var text = rule.make(pue, t, loads, h);
+    if(text){
+      var key = rule.lv + text;
+      if(!alarmKeys[key]){
+        alarmKeys[key] = true;
+        alarms.unshift({ t: nowStr(), lv: rule.lv, text: text });
+        if(alarms.length > 8) alarms.pop();
+      }
+    }
+  }
+  /* 偶发清除一条告警模拟自动恢复 */
+  if(alarms.length > 2 && rnd() < 0.10){
+    var gone = alarms.pop();
+    if(gone) delete alarmKeys[gone.lv + gone.text];
+  }
+}
+function pruneAlarms(){
+  while(alarms.length > 8) alarms.pop();
+}
+
+/* 最小二乘线性回归，外推未来 N 点（能耗趋势预测） */
+function forecast(hist, n){
+  var N = Math.min(12, hist.length);
+  if(N < 4) return [];
+  var s = hist.slice(hist.length - N);
+  var sx=0, sy=0, sxy=0, sxx=0;
+  for(var i=0;i<N;i++){ sx+=i; sy+=s[i]; sxy+=i*s[i]; sxx+=i*i; }
+  var b = (N*sxy - sx*sy) / (N*sxx - sx*sx);
+  var a = (sy - b*sx) / N;
+  var out = [];
+  for(var k=1;k<=n;k++){ out.push(+(a + b*(N-1+k)).toFixed(1)); }
+  return out;
+}
+
+/* ===================== 图表 ===================== */
+var CH = {};
+function initChart(id){
+  var el = $(id);
+  var c = echarts.init(el);
+  CH[id] = c;
+  return c;
+}
+var AXIS_COLOR = '#8ba3bf';
+var SPLIT_COLOR = 'rgba(29,51,80,.55)';
+var AREA = ['rgba(45,212,191,.16)','rgba(56,189,248,.14)','rgba(245,158,11,.12)'];
+
+function baseGrid(extra){
+  var g = { left: 8, right: 14, top: 30, bottom: 8, containLabel: true };
+  if(extra) for(var k in extra) g[k] = extra[k];
+  return g;
+}
+function baseAxis(){
+  return {
+    axisLine: { lineStyle: { color: '#2a4368' } },
+    axisLabel: { color: AXIS_COLOR, fontSize: 11 },
+    splitLine: { lineStyle: { color: SPLIT_COLOR } },
+  };
+}
+
+function initPower(){
+  var c = initChart('chPower');
+  c.setOption({
+    grid: baseGrid({right:18}),
+    tooltip: { trigger: 'axis', backgroundColor:'#0f1b31', borderColor:'#2a4368', textStyle:{color:'#e2e8f0', fontSize:12} },
+    legend: { top:0, right:0, textStyle:{color:AXIS_COLOR, fontSize:11}, itemWidth:14, itemHeight:8 },
+    xAxis: Object.assign({ type:'category', boundaryGap:false, data: timeLabels }, baseAxis()),
+    yAxis: Object.assign({ type:'value', name:'kW', nameTextStyle:{color:AXIS_COLOR}, min: 500, max: 900 }, baseAxis()),
+    series: [
+      { name:'总功率', type:'line', showSymbol:false, smooth:true, lineStyle:{width:2,color:'#2dd4bf'},
+        areaStyle:{color: AREA[0]}, data: powerHist, z:3 },
+      { name:'IT 负载', type:'line', showSymbol:false, smooth:true, lineStyle:{width:1.5,color:'#38bdf8'}, data: itHist },
+      { name:'能耗预测', type:'line', showSymbol:false, smooth:true, lineStyle:{width:2,color:'#f59e0b',type:'dashed'}, data: [], z:4 }
+    ]
+  });
+}
+function updatePower(){
+  var fc = forecast(powerHist, FUTURE);
+  var x = timeLabels.slice();
+  for(var i=1;i<=FUTURE;i++) x.push('+'+i*1.5+'s');
+  var fd = Array(WINDOW - fc.length).fill(null);
+  var fcData = fd.concat(fc.length ? fc : []);
+  if(fc.length){ fcData = []; for(var k=0;k<timeLabels.length;k++) fcData.push(null); fcData = fcData.concat(fc); }
+  CH.chPower.setOption({
+    xAxis: { data: x },
+    series: [
+      { data: powerHist },
+      { data: itHist },
+      { data: fcData }
+    ]
+  });
+}
+
+function initHeat(){
+  var c = initChart('chHeat');
+  var data = [];
+  for(var r=0;r<ROWS;r++) for(var col=0;col<COLS;col++){
+    data.push([col, r, 25]);
+  }
+  c.setOption({
+    grid: { left: 34, right: 10, top: 10, bottom: 18, containLabel:false },
+    tooltip: {
+      backgroundColor:'#0f1b31', borderColor:'#2a4368', textStyle:{color:'#e2e8f0', fontSize:12},
+      formatter: function(p){ return 'R' + pad(p.value[1]*COLS + p.value[0] + 1) + '<br/>温度：' + p.value[2].toFixed(1) + '°C'; }
+    },
+    xAxis: { type:'category', data: Array.from({length:COLS}, function(_,i){ return 'C'+pad(i+1); }), axisLabel:{color:AXIS_COLOR, fontSize:9}, axisLine:{lineStyle:{color:'#2a4368'}}, splitLine:{show:false} },
+    yAxis: { type:'category', data: Array.from({length:ROWS}, function(_,i){ return 'R'+(i+1); }), axisLabel:{color:AXIS_COLOR, fontSize:10}, axisLine:{lineStyle:{color:'#2a4368'}}, splitLine:{show:false} },
+    visualMap: {
+      min: 22, max: 33, calculable:false, orient:'horizontal', left:'center', bottom:0,
+      itemHeight:80, itemWidth:8, textStyle:{color:AXIS_COLOR, fontSize:10},
+      inRange:{ color:['#0e4d64','#1c9e97','#7fd68f','#f6c85f','#ef6a5a'] }
+    },
+    series: [{
+      type:'heatmap', data: data,
+      label:{show:false},
+      itemStyle:{ borderColor:'#0a1220', borderWidth:1 }
+    }]
+  });
+}
+function updateHeat(heat){
+  var data = [];
+  for(var r=0;r<ROWS;r++) for(var col=0;col<COLS;col++){
+    data.push([col, r, heat[r][col]]);
+  }
+  CH.chHeat.setOption({ series:[{ data: data }] });
+}
+
+function initPie(){
+  var c = initChart('chPie');
+  c.setOption({
+    tooltip: { trigger:'item', backgroundColor:'#0f1b31', borderColor:'#2a4368', textStyle:{color:'#e2e8f0', fontSize:12},
+      formatter:'{b}<br/>{c} kW · {d}%' },
+    legend: { orient:'vertical', right:4, top:'middle', textStyle:{color:AXIS_COLOR, fontSize:11}, itemWidth:12, itemHeight:8 },
+    series: [{
+      type:'pie', radius:['46%','68%'], center:['38%','50%'],
+      label: { show:false },
+      emphasis: { label:{ show:true, color:'#e2e8f0', fontSize:12, formatter:'{b}\n{d}%' }, labelLine:{ lineStyle:{color:'#2a4368'} } },
+      data: [
+        { value: 1, name:'IT 设备', itemStyle:{color:'#2dd4bf'} },
+        { value: 1, name:'制冷系统', itemStyle:{color:'#38bdf8'} },
+        { value: 1, name:'供配电', itemStyle:{color:'#f59e0b'} },
+        { value: 1, name:'照明及其它', itemStyle:{color:'#7dd3fc'} }
+      ]
+    }]
+  });
+}
+function updatePie(d){
+  CH.chPie.setOption({ series:[{ data:[
+    { value: d.it, name:'IT 设备' },
+    { value: d.cool, name:'制冷系统' },
+    { value: d.elec, name:'供配电' },
+    { value: d.light, name:'照明及其它' }
+  ]}]});
+}
+
+function initBar(){
+  var c = initChart('chBar');
+  c.setOption({
+    grid: baseGrid(),
+    tooltip: { trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0f1b31', borderColor:'#2a4368', textStyle:{color:'#e2e8f0', fontSize:12} },
+    legend: { top:0, right:0, textStyle:{color:AXIS_COLOR, fontSize:11}, itemWidth:12, itemHeight:8 },
+    xAxis: Object.assign({ type:'category', data: [] }, baseAxis()),
+    yAxis: Object.assign({ type:'value', name:'kW', nameTextStyle:{color:AXIS_COLOR} }, baseAxis()),
+    series: [
+      { name:'IT', type:'bar', stack:'e', barWidth:9, itemStyle:{color:'#2dd4bf'}, data: [] },
+      { name:'制冷', type:'bar', stack:'e', itemStyle:{color:'#38bdf8'}, data: [] },
+      { name:'供配电', type:'bar', stack:'e', itemStyle:{color:'#f59e0b'}, data: [] },
+      { name:'照明', type:'bar', stack:'e', itemStyle:{color:'#7dd3fc'}, data: [] }
+    ]
+  });
+}
+function updateBar(){
+  var labels=[], it=[], cool=[], elec=[], light=[];
+  for(var i=0;i<barStack.length;i++){
+    labels.push(hourLabel(barStack[i].h));
+    it.push(barStack[i].it); cool.push(barStack[i].cool);
+    elec.push(barStack[i].elec); light.push(barStack[i].light);
+  }
+  CH.chBar.setOption({
+    xAxis: { data: labels },
+    series: [ {data:it}, {data:cool}, {data:elec}, {data:light} ]
+  });
+}
+
+function initPue(){
+  var c = initChart('chPue');
+  c.setOption({
+    grid: baseGrid(),
+    tooltip: { trigger:'axis', backgroundColor:'#0f1b31', borderColor:'#2a4368', textStyle:{color:'#e2e8f0', fontSize:12} },
+    xAxis: Object.assign({ type:'category', boundaryGap:false, data: [] }, baseAxis()),
+    yAxis: Object.assign({ type:'value', min:1.10, max:1.55, interval:0.1 }, baseAxis()),
+    series: [
+      { name:'PUE', type:'line', showSymbol:false, smooth:true, lineStyle:{width:2,color:'#2dd4bf'}, areaStyle:{color:AREA[0]}, data: [] },
+      { name:'目标线', type:'line', showSymbol:false, lineStyle:{width:1.5,color:'#f59e0b',type:'dashed'}, data: [], markLine:null }
+    ]
+  });
+  c.setOption({ series:[{ markLine:{ silent:true, symbol:'none', lineStyle:{color:'#f59e0b',type:'dashed',width:1}, label:{color:'#f59e0b',fontSize:10,formatter:'目标 1.30'}, data:[{yAxis:1.30}] } }] });
+}
+function updatePue(){
+  CH.chPue.setOption({
+    xAxis: { data: timeLabels },
+    series: [ { data: pueHist } ]
+  });
+}
+
+function initLoad(){
+  var c = initChart('chLoad');
+  c.setOption({
+    grid: baseGrid({left:10}),
+    tooltip: { trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0f1b31', borderColor:'#2a4368', textStyle:{color:'#e2e8f0', fontSize:12}, formatter:'{b}<br/>负载率：{c}%' },
+    xAxis: Object.assign({ type:'category', data: [] }, baseAxis()),
+    yAxis: Object.assign({ type:'value', name:'%', nameTextStyle:{color:AXIS_COLOR}, max:100 }, baseAxis()),
+    series: [{
+      type:'bar', barWidth:18, data: [],
+      itemStyle: { color: function(p){ return p.value > 90 ? '#ef4444' : (p.value > 75 ? '#f59e0b' : '#2dd4bf'); }, borderRadius:[3,3,0,0] },
+      label: { show:true, position:'top', color:AXIS_COLOR, fontSize:10, formatter:'{c}%' }
+    }]
+  });
+}
+function updateLoad(loads){
+  var labels = [];
+  for(var i=0;i<loads.length;i++) labels.push('R'+pad(i+1));
+  CH.chLoad.setOption({ xAxis:{ data: labels }, series:[{ data: loads }] });
+}
+
+/* ===================== KPI / 告警 / 时钟 ===================== */
+function updateKpi(d){
+  $('kpP').innerHTML = d.power + '<small>kW</small>';
+  $('kpPue').textContent = d.pue.toFixed(2);
+  var pueT = $('kpPueT');
+  var diff = (d.pue - 1.30) * 100;
+  pueT.textContent = diff > 0.05 ? '超目标 ' + diff.toFixed(1) + '%' : '运行达标 ≤1.30';
+  pueT.style.color = diff > 0.05 ? 'var(--amber)' : 'var(--green)';
+  $('kpT').innerHTML = d.avgT.toFixed(1) + '<small>°C</small>';
+  $('kpTt').textContent = d.avgT > 30.5 ? '偏高' : '正常';
+  $('kpTt').style.color = d.avgT > 30.5 ? 'var(--amber)' : 'var(--ink-dim)';
+  $('kpH').innerHTML = d.humi.toFixed(0) + '<small>%</small>';
+  $('kpHt').textContent = (d.humi>=35 && d.humi<=62) ? '正常' : '异常';
+  $('kpHt').style.color = (d.humi>=35 && d.humi<=62) ? 'var(--ink-dim)' : 'var(--red)';
+  $('kpE').innerHTML = d.todayKwh + '<small>kWh</small>';
+  $('kpA').textContent = alarms.length;
+  $('kpAt').textContent = alarms.length ? '请查看右侧告警列表' : '运行正常';
+  $('kpAt').style.color = alarms.length ? 'var(--amber)' : 'var(--green)';
+}
+
+function renderAlarms(){
+  var box = $('alarmList');
+  if(!alarms.length){
+    box.innerHTML = '<div style="color:#5f7ba0;font-size:12px;padding:12px;text-align:center;">当前无异常告警，系统运行正常</div>';
+    return;
+  }
+  var h = '';
+  for(var i=0;i<alarms.length;i++){
+    var a = alarms[i];
+    h += '<div class="alarm ' + a.lv + '"><span class="at num">' + a.t + '</span><span class="tx">' +
+         (a.lv==='sev' ? '<b style="color:var(--red)">[严重]</b> ' : '<b style="color:var(--amber)">[警告]</b> ') + a.text + '</span></div>';
+  }
+  box.innerHTML = h;
+}
+
+function tickClock(){
+  var d = new Date();
+  $('clockT').textContent = pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  $('clockD').textContent = d.getFullYear()+'/'+pad(d.getMonth()+1)+'/'+pad(d.getDate())+' 周'+'日一二三四五六'[d.getDay()];
+}
+
+/* ===================== 主循环 ===================== */
+window.addEventListener('resize', function(){
+  for(var k in CH){ if(CH[k]) CH[k].resize(); }
+});
+
+function boot(){
+  tickClock();
+  setInterval(tickClock, 1000);
+  initPower(); initHeat(); initPie(); initBar(); initPue(); initLoad();
+
+  /* 预填充 60 个历史点，让大屏一打开就有完整曲线 */
+  for(var i=0;i<WINDOW;i++){
+    var dd = new Date(Date.now() - (WINDOW - i)*1500);
+    timeLabels.push(pad(dd.getHours())+':'+pad(dd.getMinutes())+':'+pad(dd.getSeconds()));
+    var base = 680 + 22*Math.sin(i/30) + rndRange(-11,11) + i*0.012;
+    var p = clamp(base, 560, 860);
+    powerHist.push(+p.toFixed(1));
+    itHist.push(+(p*0.72).toFixed(1));
+    coolHist.push(+(p*0.19).toFixed(1));
+    pueHist.push(+(1.30 + 0.05*Math.sin(i/36) + rndRange(-0.015,0.015)).toFixed(3));
+    tempHist.push(+(25.6 + 2.6*Math.sin(i/26) + rndRange(-0.4,0.5)).toFixed(1));
+    humiHist.push(+(47 + 4*Math.sin(i/40) + rndRange(-1.6,1.6)).toFixed(1));
+  }
+  /* 预填充 24h 堆叠柱 */
+  var h0 = new Date().getHours();
+  for(var h=0;h<24;h++){
+    var bh = (h0 - 23 + h + 24) % 24;
+    var f = 0.88 + rnd()*0.24;
+    barStack.push({ h: bh, it: +(468*f).toFixed(1), cool: +(124*f).toFixed(1), elec: +(39*f).toFixed(1), light: +(20*f).toFixed(1) });
+  }
+  barStack.sort(function(a,b){ return a.h - b.h; });
+
+  /* 首个数据点 */
+  var d0 = tickData();
+  updatePower(); updateHeat(genHeat()); updatePie(d0);
+  updateBar(); updatePue(); updateLoad(loadHist);
+  updateKpi(d0); renderAlarms();
+
+  setInterval(function(){
+    var d = tickData();
+    updatePower(); updateHeat(genHeat()); updatePie(d);
+    updateBar(); updatePue(); updateLoad(loadHist);
+    updateKpi(d); renderAlarms();
+  }, 1500);
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
+</script>
+</body>
+</html>
